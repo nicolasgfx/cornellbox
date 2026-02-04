@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Radiosity (Debug Preset)",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/bin/Debug/radiosity.exe",
+      "args": [
+        "--output",
+        "output/scenes_debug"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopAtEntry": false,
+      "preLaunchTask": "Configure + Build (Debug)"
+    },
+    {
+      "name": "Debug Radiosity (Current EXE)",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/output/bin/radiosity.exe",
+      "args": [
+        "--output",
+        "output/scenes_debug"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    }
+  ]
+}
