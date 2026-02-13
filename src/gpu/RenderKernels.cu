@@ -53,10 +53,11 @@ extern "C" __global__ void __raygen__render() {
     dir.y /= len;
     dir.z /= len;
 
-    // Payload: rgb packed into 3 uints via __float_as_uint.
+    // Payload: rgb + depth packed into 4 uints via __float_as_uint.
     uint32_t p0 = __float_as_uint(0.0f);
     uint32_t p1 = __float_as_uint(0.0f);
     uint32_t p2 = __float_as_uint(0.0f);
+    uint32_t p3 = __float_as_uint(1e16f);  // depth (miss = far)
 
     optixTrace(
         params.gasHandle,
@@ -68,15 +69,16 @@ extern "C" __global__ void __raygen__render() {
         OptixVisibilityMask(255),
         OPTIX_RAY_FLAG_DISABLE_ANYHIT,
         0, 1, 0,
-        p0, p1, p2
+        p0, p1, p2, p3
     );
 
     const float r = __uint_as_float(p0);
     const float g = __uint_as_float(p1);
     const float b = __uint_as_float(p2);
+    const float depth = __uint_as_float(p3);
 
     const uint32_t fbIdx = py * params.width + px;
-    params.framebuffer[fbIdx] = make_float4(r, g, b, 1.0f);
+    params.framebuffer[fbIdx] = make_float4(r, g, b, depth);
 }
 
 extern "C" __global__ void __closesthit__render() {
@@ -98,11 +100,13 @@ extern "C" __global__ void __closesthit__render() {
     optixSetPayload_0(__float_as_uint(r));
     optixSetPayload_1(__float_as_uint(g));
     optixSetPayload_2(__float_as_uint(b));
+    optixSetPayload_3(__float_as_uint(optixGetRayTmax()));
 }
 
 extern "C" __global__ void __miss__render() {
-    // Background: black.
+    // Background: black, depth = far.
     optixSetPayload_0(__float_as_uint(0.0f));
     optixSetPayload_1(__float_as_uint(0.0f));
     optixSetPayload_2(__float_as_uint(0.0f));
+    optixSetPayload_3(__float_as_uint(1e16f));
 }

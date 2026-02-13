@@ -3,7 +3,6 @@
 #include "../math/Vec3.h"
 #include "../math/MathUtils.h"
 #include "../app/Config.h"
-#include <iostream>
 #include <cmath>
 #include <algorithm>
 

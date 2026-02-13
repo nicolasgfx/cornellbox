@@ -408,7 +408,8 @@ int main(int argc, char** argv) {
         } else {
             // Helper: build a welded render mesh with area-weighted vertex colours.
             // `keep` is called for each triangle index; return false to exclude it.
-            auto buildRenderMesh = [&](auto keep)
+            // `colorSrc` provides per-triangle colours (defaults to `display`).
+            auto buildRenderMesh = [&](auto keep, const std::vector<Vec3>& colorSrc)
                 -> std::tuple<std::vector<float3>, std::vector<uint3>, std::vector<float3>>
             {
                 auto qp = [](float v) -> int64_t  { return static_cast<int64_t>(std::llround(double(v) / 1e-5)); };
@@ -447,7 +448,7 @@ int main(int argc, char** argv) {
                                    mesh.vertices[tri.i1].toVec3(),
                                    mesh.vertices[tri.i2].toVec3() };
                     float area = MathUtils::triangleArea(vp[0], vp[1], vp[2]);
-                    const Vec3& col = display[i];
+                    const Vec3& col = colorSrc[i];
                     const Vec3& n   = mesh.triangle_normal[i];
                     uint32_t mat = (i < mesh.triangle_material_id.size())
                                    ? mesh.triangle_material_id[i] : 0u;
@@ -484,10 +485,15 @@ int main(int argc, char** argv) {
 
             // --- Front view (default camera, all triangles) ---
             {
-                auto [pos, idx, colors] = buildRenderMesh([](size_t) { return true; });
+                auto [pos, idx, colors] = buildRenderMesh([](size_t) { return true; }, display);
                 Renderer::RayTracedRenderer renderer;
                 renderer.initialize(ptx.string(), pos, idx, colors);
                 renderer.renderAndSave(config.outputPath + "/cornell_render.png");
+
+                // --- Wireframe overlay (same front view + mesh edges and vertices) ---
+                renderer.renderWireframeAndSave(
+                    config.outputPath + "/cornell_render_wireframe.png",
+                    pos, idx);
             }
 
             // --- Top view (ceiling removed, camera looking straight down) ---
@@ -495,7 +501,7 @@ int main(int argc, char** argv) {
                 auto [pos, idx, colors] = buildRenderMesh([&](size_t i) {
                     // Remove ceiling and light-panel triangles (centroid y ≈ 0.5).
                     return mesh.triangle_centroid[i].y < 0.48f;
-                });
+                }, display);
                 Renderer::Camera topCam;
                 topCam.eye    = make_float3(0.0f, 1.8f, 0.0f);
                 topCam.lookAt = make_float3(0.0f, 0.0f, 0.0f);
@@ -516,6 +522,7 @@ int main(int argc, char** argv) {
     std::cout << "  " << objFile << "\n";
 #ifdef USE_OPTIX
     std::cout << "  " << config.outputPath << "/cornell_render.png\n";
+    std::cout << "  " << config.outputPath << "/cornell_render_wireframe.png\n";
     std::cout << "  " << config.outputPath << "/cornell_render_top.png\n";
 #endif
     std::cout << std::endl;

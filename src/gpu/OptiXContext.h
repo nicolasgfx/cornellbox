@@ -374,7 +374,6 @@ public:
             uint32_t numTriangles;
             uint32_t originSamples;
             uint32_t dirSamples;
-            float* formFactors;
             float sceneEpsilon;
             float distanceSoftening;
             uint32_t basePatchId;
@@ -395,7 +394,6 @@ public:
         params.numTriangles = numTriangles;
         params.originSamples = originSamples;
         params.dirSamples = dirSamples;
-        params.formFactors = nullptr;
         params.sceneEpsilon = computeSceneEpsilon(mesh);
         params.distanceSoftening = kDistanceSoftening;
         params.basePatchId = patchId;
@@ -420,6 +418,7 @@ public:
         CUDA_CHECK(cudaMemcpy(row.data(), (void*)d_row, numTriangles * sizeof(float), cudaMemcpyDeviceToHost));
         CUDA_CHECK(cudaFree((void*)d_row));
     }
+
 };
 
 } // namespace OptiXContext

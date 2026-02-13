@@ -69,7 +69,6 @@ struct LaunchParams {
     uint32_t numTriangles;
     uint32_t originSamples;
     uint32_t dirSamples;
-    float* formFactors;
     float sceneEpsilon;
     float distanceSoftening;
     uint32_t basePatchId;

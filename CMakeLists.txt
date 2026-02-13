@@ -65,7 +65,6 @@ set(SOURCES
 set(HEADERS
     src/math/Vec3.h
     src/math/MathUtils.h
-    src/math/HemisphereSampling.h
     src/mesh/MeshData.h
     src/mesh/Subdivision.h
     src/mesh/PatchBuilder.h
@@ -97,7 +96,6 @@ if(USE_OPTIX)
             ${CMAKE_SOURCE_DIR}/src/gpu/HemisphereFormFactorKernels.cu
         DEPENDS 
             ${CMAKE_SOURCE_DIR}/src/gpu/HemisphereFormFactorKernels.cu
-            ${CMAKE_SOURCE_DIR}/src/math/HemisphereSampling.h
         COMMENT "Compiling Hemisphere Form Factor kernel to PTX"
         VERBATIM
     )
@@ -114,7 +112,7 @@ if(USE_OPTIX)
         COMMENT "Compiling Render kernel to PTX"
         VERBATIM
     )
-    
+
     # PTX target
     add_custom_target(compile_ptx ALL
         DEPENDS
