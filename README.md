@@ -27,7 +27,12 @@ Where:
 
 $$F_{ij} = \frac{1}{A_i} \int_{A_i} \int_{A_j} \frac{\cos\theta_i \cos\theta_j \cdot V(x_i, x_j)}{\pi |x_i - x_j|^2} \, dA_j \, dA_i$$
 
-We solve this with **Monte Carlo integration on GPU** (OptiX ray tracing for visibility $V(x_i, x_j)$), then iterate the radiosity equation until convergence (typically 50,000–100,000 iterations).
+We solve this with **Monte Carlo integration on GPU** (OptiX ray tracing for visibility $V(x_i, x_j)$).
+With distance softening $k$ and $N$ uniform sample pairs on both triangles:
+
+$$F_{ij} \approx \frac{A_j}{N} \sum_{k=1}^{N} \frac{\cos\theta_{i,k} \cos\theta_{j,k}}{\pi (r_k^2 + k_{\text{soft}})} \cdot V_k$$
+
+The radiosity equation is then iterated via **progressive refinement (shooting)** until the maximum unshot radiosity drops below a convergence threshold (default $10^{-3}$).
 
 ## What Makes This Special
 
@@ -63,7 +68,7 @@ We solve this with **Monte Carlo integration on GPU** (OptiX ray tracing for vis
        ▼
 ┌─────────────┐
 │ Radiosity   │  Progressive refinement (shooting)
-│   Solve     │  Iterate until convergence < 0.001
+│   Solve     │  Iterate until max unshot < 0.001
 └──────┬──────┘
        ▼
 ┌─────────────┐
@@ -123,6 +128,7 @@ Options:
 Output files are written to the output directory:
 - `cornell_radiosity.obj` — smoothed vertex-color OBJ
 - `cornell_render.png` — ray-traced PNG, front view (OptiX only)
+- `cornell_render_wireframe.png` — ray-traced PNG with mesh wireframe overlay (OptiX only)
 - `cornell_render_top.png` — ray-traced PNG, top-down view with ceiling removed (OptiX only)
 
 ## Configuration
@@ -132,11 +138,16 @@ All tuning constants live in [`src/app/Config.h`](src/app/Config.h):
 | Constant | Default | Description |
 |---|---|---|
 | `kSubdivisionTargetArea` | 0.001 | Target triangle area for subdivision |
-| `kVisibilitySamples` | 32 | Monte Carlo samples per form-factor target |
-| `kIndirectBoostFactor` | 1.3 | Indirect light multiplier |
-| `kToneMapExposure` | 1.4 | Exposure before gamma |
-| `kToneMapGamma` | 0.8 | Gamma exponent |
+| `kLightBrightnessScale` | 1.0 | Light source brightness multiplier |
+| `kEnableGPUFormFactors` | true | Use GPU (OptiX) for form factors |
+| `kVisibilitySamples` | 16 | Monte Carlo samples per form-factor target |
+| `kIndirectBoostFactor` | 1.2 | Indirect light multiplier (1.0 = strict physics) |
+| `kDistanceSoftening` | 0.0001 | Softening added to $r^2$ in form-factor denominator |
+| `kToneMapExposure` | 1.2 | Exposure before gamma |
+| `kToneMapGamma` | 0.6 | Gamma exponent |
 | `kRenderWidth/Height` | 3840 | PNG render resolution |
+| `kCameraEyeZ` | 1.94 | Camera distance (Cornell spec) |
+| `kCameraFovY` | 39.3 | Vertical FOV in degrees (Cornell spec) |
 
 ## Project Structure
 
@@ -148,9 +159,8 @@ src/
   mesh/MeshData.h           Mesh data structures
   mesh/Subdivision.h        Adaptive triangle subdivision
   mesh/PatchBuilder.h       Per-triangle geometry and material setup
-  math/Vec3.h               3D vector type
+  math/vec3.h               3D vector type
   math/MathUtils.h          Triangle area, normal, centroid
-  math/HemisphereSampling.h Cosine-weighted hemisphere sampling (CUDA)
   export/OBJExporter.h      Smoothed vertex-color OBJ export
   gpu/OptiXContext.h        OptiX context, GAS build, form-factor launch
   gpu/Renderer.h            OptiX ray-traced PNG renderer
