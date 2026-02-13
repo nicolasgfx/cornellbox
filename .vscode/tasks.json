@@ -1,0 +1,149 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Configure (Release)",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--preset",
+        "release"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build (Release)",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "--preset",
+        "release"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": false
+      },
+      "problemMatcher": ["$gcc", "$msCompile"]
+    },
+    {
+      "label": "Configure (Debug)",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--preset",
+        "debug"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build (Debug)",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "--preset",
+        "debug"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": false
+      },
+      "problemMatcher": ["$gcc", "$msCompile"]
+    },
+    {
+      "label": "Configure + Build (Debug)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Configure (Debug)",
+        "Build (Debug)"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Clean Build Directory",
+      "type": "shell",
+      "command": "Remove-Item",
+      "args": [
+        "-Recurse",
+        "-Force",
+        "build"
+      ],
+      "windows": {
+        "command": "Remove-Item",
+        "args": [
+          "-Recurse",
+          "-Force",
+          "build",
+          "-ErrorAction",
+          "SilentlyContinue"
+        ]
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Radiosity (Release)",
+      "type": "shell",
+      "command": "${workspaceFolder}/build/bin/Release/radiosity.exe",
+      "dependsOn": ["Build (Release)"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Radiosity (Debug)",
+      "type": "shell",
+      "command": "${workspaceFolder}/build/bin/Debug/radiosity.exe",
+      "dependsOn": ["Configure + Build (Debug)"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Full Rebuild (Release)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Clean Build Directory",
+        "Configure (Release)",
+        "Build (Release)"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

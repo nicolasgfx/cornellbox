@@ -1,85 +1,78 @@
 #pragma once
 #include <string>
 #include <iostream>
+#include <cstdint>
 
-enum class Profile {
-    LOW,
-    MEDIUM,
-    HIGH
-};
+// ---------------------------------------------------------------------------
+// Tuning constants — edit these to control quality vs. speed.
+// ---------------------------------------------------------------------------
+
+// Target triangle area for adaptive subdivision (lower = more triangles).
+inline constexpr float kSubdivisionTargetArea = 0.001f;
+
+// Light source brightness multiplier (1.0 = Cornell spec).
+inline constexpr float kLightBrightnessScale = 1.0f;
+
+// GPU form-factor computation via OptiX ray-traced visibility.
+inline constexpr bool  kEnableGPUFormFactors  = true;
+inline constexpr uint32_t kVisibilitySamples  = 32;
+
+// Indirect-light boost applied to reflected energy each bounce.
+// 1.0 = strict physics.  Slightly >1 brightens indirect light.
+inline constexpr float kIndirectBoostFactor = 1.3f;
+
+// Distance softening added to r² in the form-factor denominator.
+// 0.0 = standard physics.  Small positive values soften near-field contrast.
+inline constexpr float kDistanceSoftening = 0.0001f;
+
+// Tone mapping: exposure scales linear values, gamma compresses dynamic range.
+inline constexpr float kToneMapExposure = 1.4f;
+inline constexpr float kToneMapGamma   = 0.8f;
+
+// Render output resolution (OptiX ray-traced PNG).
+inline constexpr uint32_t kRenderWidth  = 3840;
+inline constexpr uint32_t kRenderHeight = 3840;
+
+// Camera: classic Cornell Box front view.
+inline constexpr float kCameraEyeX = 0.0f;
+inline constexpr float kCameraEyeY = 0.0f;
+inline constexpr float kCameraEyeZ = 1.94f;
+inline constexpr float kCameraFovY = 39.3f;   // degrees (Cornell spec)
+
+// ---------------------------------------------------------------------------
+// Command-line config
+// ---------------------------------------------------------------------------
 
 struct Config {
-    Profile profile = Profile::LOW;
-    std::string outputPath = "output/scenes";
+    std::string outputPath = "output";
     bool validate = true;
-    int phase = 2;
-    
-    // Parse command line arguments
+
     bool parseArgs(int argc, char** argv) {
         for (int i = 1; i < argc; ++i) {
             std::string arg = argv[i];
-            
-            if (arg == "--low") {
-                profile = Profile::LOW;
-            }
-            else if (arg == "--medium") {
-                profile = Profile::MEDIUM;
-            }
-            else if (arg == "--high") {
-                profile = Profile::HIGH;
-            }
-            else if (arg == "--output" && i + 1 < argc) {
+            if (arg == "--output" && i + 1 < argc) {
                 outputPath = argv[++i];
-            }
-            else if (arg == "--no-validate") {
+            } else if (arg == "--no-validate") {
                 validate = false;
-            }
-            else if (arg == "--phase" && i + 1 < argc) {
-                phase = std::atoi(argv[++i]);
-            }
-            else if (arg == "--help" || arg == "-h") {
+            } else if (arg == "--help" || arg == "-h") {
                 printHelp();
                 return false;
-            }
-            else {
-                std::cerr << "Unknown argument: " << arg << std::endl;
+            } else {
+                std::cerr << "Unknown argument: " << arg << "\n";
                 printHelp();
                 return false;
             }
         }
         return true;
     }
-    
-    std::string getProfileName() const {
-        switch (profile) {
-            case Profile::LOW: return "low";
-            case Profile::MEDIUM: return "medium";
-            case Profile::HIGH: return "high";
-            default: return "unknown";
-        }
-    }
-    
-    // Target triangle area for adaptive subdivision
-    // Triangles larger than this will be subdivided
-    float getTargetArea() const {
-        switch (profile) {
-            case Profile::LOW: return 0.002f;      // ~4000 triangles
-            case Profile::MEDIUM: return 0.0005f;  // ~16000 triangles (4x refined)
-            case Profile::HIGH: return 0.000125f;  // ~64000 triangles (4x refined)
-            default: return 0.002f;
-        }
-    }
-    
+
     void printHelp() const {
-        std::cout << "Radiosity Cornell Box\n\n";
-        std::cout << "Usage: radiosity [options]\n\n";
-        std::cout << "Options:\n";
-        std::cout << "  --low           Low profile (~4K triangles)\n";
-        std::cout << "  --medium        Medium profile (~16K triangles)\n";
-        std::cout << "  --high          High profile (~64K triangles)\n";
-        std::cout << "  --phase N       Run phases up to N (1=geometry, 2=radiosity, default: 2)\n";
-        std::cout << "  --output PATH   Output directory (default: output/scenes)\n";
-        std::cout << "  --no-validate   Skip validation\n";
-        std::cout << "  --help, -h      Show help\n";
+        std::cout << "Radiosity Cornell Box Renderer\n\n"
+                  << "Usage: radiosity [options]\n\n"
+                  << "Options:\n"
+                  << "  --output PATH   Output directory (default: output)\n"
+                  << "  --no-validate   Skip mesh validation\n"
+                  << "  --help, -h      Show this help\n\n"
+                  << "Tuning constants are in src/app/Config.h.\n";
     }
 };

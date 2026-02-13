@@ -1,36 +1,8 @@
-# Build directories
 build/
-output/bin/
-output/cache/
-
-# Visual Studio
-.vs/
+output/
 *.user
-*.suo
-*.sln.docstates
-*.vcxproj.user
-
-# Compiled binaries
+.vs/
+CMakeUserPresets.json
 *.exe
-*.dll
 *.pdb
 *.ilk
-*.obj
-*.lib
-*.exp
-
-# Output files (keep structure but ignore generated content)
-output/scenes/*.obj
-output/scenes/*.mtl
-output/scenes/*/*.obj
-output/scenes/*/*.mtl
-
-# IDE
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
