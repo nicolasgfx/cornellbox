@@ -8,26 +8,26 @@
 // ---------------------------------------------------------------------------
 
 // Target triangle area for adaptive subdivision (lower = more triangles).
-inline constexpr float kSubdivisionTargetArea = 0.001f;
+inline constexpr float kSubdivisionTargetArea = 0.001f; // 0.001f
 
 // Light source brightness multiplier (1.0 = Cornell spec).
-inline constexpr float kLightBrightnessScale = 1.0f;
+inline constexpr float kLightBrightnessScale = 1.0f; // 1.0f
 
 // GPU form-factor computation via OptiX ray-traced visibility.
-inline constexpr bool  kEnableGPUFormFactors  = true;
-inline constexpr uint32_t kVisibilitySamples  = 32;
+inline constexpr bool  kEnableGPUFormFactors  = true; // true
+inline constexpr uint32_t kVisibilitySamples  = 16; // 16 to 64
 
 // Indirect-light boost applied to reflected energy each bounce.
 // 1.0 = strict physics.  Slightly >1 brightens indirect light.
-inline constexpr float kIndirectBoostFactor = 1.3f;
+inline constexpr float kIndirectBoostFactor = 1.2f; // 1.2f
 
 // Distance softening added to r² in the form-factor denominator.
 // 0.0 = standard physics.  Small positive values soften near-field contrast.
 inline constexpr float kDistanceSoftening = 0.0001f;
 
 // Tone mapping: exposure scales linear values, gamma compresses dynamic range.
-inline constexpr float kToneMapExposure = 1.4f;
-inline constexpr float kToneMapGamma   = 0.8f;
+inline constexpr float kToneMapExposure = 1.2f; // 1.4f
+inline constexpr float kToneMapGamma   = 0.6f; // 0.8f
 
 // Render output resolution (OptiX ray-traced PNG).
 inline constexpr uint32_t kRenderWidth  = 3840;
