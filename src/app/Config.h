@@ -39,6 +39,14 @@ inline constexpr float kCameraEyeY = 0.0f;
 inline constexpr float kCameraEyeZ = 1.94f;
 inline constexpr float kCameraFovY = 39.3f;   // degrees (Cornell spec)
 
+// Progressive refinement animation: capture frames during solve.
+// Two-pass content-aware: analysis pass measures visual change per iteration,
+// then render pass allocates screen time proportional to change magnitude.
+// Slow where the scene changes dramatically, fast where it barely changes.
+inline constexpr bool     kEnableProgressiveAnimation = false;
+inline constexpr uint32_t kAnimationFPS               = 30;
+inline constexpr float    kAnimationDurationSeconds   = 10.0f;
+
 // ---------------------------------------------------------------------------
 // Command-line config
 // ---------------------------------------------------------------------------

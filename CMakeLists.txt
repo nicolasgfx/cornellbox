@@ -73,6 +73,7 @@ set(HEADERS
     src/gpu/OptiXContext.h
     src/gpu/Renderer.h
     src/app/Config.h
+    src/solver/FormFactor.h
 )
 
 # OptiX PTX kernel compilation
@@ -184,6 +185,31 @@ add_custom_command(TARGET radiosity POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/output/bin
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:radiosity> ${CMAKE_SOURCE_DIR}/output/bin/
     COMMENT "Copying to output/bin/"
+)
+
+# --- Form factor test executable (CPU-only, no GPU dependency) ---
+add_executable(test_form_factors
+    src/tests/test_form_factors.cpp
+)
+target_include_directories(test_form_factors PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party
+)
+target_compile_features(test_form_factors PRIVATE cxx_std_17)
+if(MSVC)
+    target_compile_options(test_form_factors PRIVATE /W3 /MP)
+    if(USE_OPENMP)
+        target_compile_options(test_form_factors PRIVATE /openmp)
+    endif()
+else()
+    target_compile_options(test_form_factors PRIVATE -Wall -Wextra)
+    if(USE_OPENMP)
+        find_package(OpenMP REQUIRED COMPONENTS CXX)
+        target_link_libraries(test_form_factors PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+endif()
+set_target_properties(test_form_factors PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
 # Summary

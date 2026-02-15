@@ -1,8 +1,10 @@
 build/
-output/bin/
+output/
 *.user
 .vs/
 CMakeUserPresets.json
 *.exe
 *.pdb
 *.ilk
+*.obj
+*.png

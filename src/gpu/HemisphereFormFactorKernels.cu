@@ -125,15 +125,11 @@ extern "C" __global__ void __raygen__formfactor_row() {
     if (cosI <= 0.0f || cosJ <= 0.0f) return;
 
     const float Aj = params.area[targetId];
-    // Use clamped dist² in the denominator to bound form factors for
-    // very close sample points, but direction is always from actual geometry.
-    const float minDist2 = Aj * 0.1f;
-    const float clampedDist2 = (actualDist2 < minDist2) ? minDist2 : actualDist2;
     // Monte Carlo sample of the form factor: (cosI * cosJ * Aj) / (π (r² + k) N)
-    // k = distanceSoftening; 0 = standard physics, >0 compresses near/far ratio.
-    float sample = (cosI * cosJ * Aj) / (3.14159265358979323846f * (clampedDist2 + params.distanceSoftening) * float(N));
-    // Clamp: a single sample contribution must not exceed 1/N.
-    if (sample > 1.0f / float(N)) sample = 1.0f / float(N);
+    // k = distanceSoftening regularises the near-field without area dependence.
+    // No area-dependent distance floor or per-sample cap — these clamps made
+    // the estimator subdivision-variant, causing small-triangle darkening.
+    float sample = (cosI * cosJ * Aj) / (3.14159265358979323846f * (actualDist2 + params.distanceSoftening) * float(N));
     if (sample < 1e-12f) return;
 
     // Offset origin/target along normals to avoid self-intersection.
