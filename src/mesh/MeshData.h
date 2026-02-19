@@ -40,6 +40,9 @@ struct Mesh {
     std::vector<Vec3>     triangle_reflectance;   // diffuse reflectance  (ρ)
     std::vector<Vec3>     triangle_emission;      // emission for lights
 
+    // Per-triangle subdivision flag: 1 = created by subdivision, 0 = original.
+    std::vector<uint8_t>  triangle_is_subdivided;
+
     size_t numVertices()  const { return vertices.size(); }
     size_t numTriangles() const { return indices.size(); }
 };

@@ -1,16 +1,21 @@
 #pragma once
 #include "../mesh/MeshData.h"
 #include "../math/MathUtils.h"
+#include <iostream>
+#include <algorithm>
 
 namespace Subdivision {
 
 // Recursively subdivide a triangle until each piece has area ≤ targetArea.
+// depth tracks recursion level: 0 = top-level call (original face).
 inline void subdivideTriangleAdaptive(
     const Vertex& v0, const Vertex& v1, const Vertex& v2,
     uint32_t materialID, float targetArea,
     std::vector<Vertex>&   outVerts,
     std::vector<TriIdx>&   outTris,
-    std::vector<uint32_t>& outMats)
+    std::vector<uint32_t>& outMats,
+    std::vector<uint8_t>*  outSubdivFlags = nullptr,
+    uint32_t depth = 0)
 {
     Vec3 p0 = v0.toVec3(), p1 = v1.toVec3(), p2 = v2.toVec3();
 
@@ -21,6 +26,8 @@ inline void subdivideTriangleAdaptive(
         outVerts.push_back(v2);
         outTris.push_back(TriIdx(base, base + 1, base + 2));
         outMats.push_back(materialID);
+        if (outSubdivFlags)
+            outSubdivFlags->push_back(depth > 0 ? 1 : 0);
         return;
     }
 
@@ -29,10 +36,10 @@ inline void subdivideTriangleAdaptive(
     Vertex m12((p1 + p2) * 0.5f);
     Vertex m20((p2 + p0) * 0.5f);
 
-    subdivideTriangleAdaptive(v0,  m01, m20, materialID, targetArea, outVerts, outTris, outMats);
-    subdivideTriangleAdaptive(m01, v1,  m12, materialID, targetArea, outVerts, outTris, outMats);
-    subdivideTriangleAdaptive(m20, m12, v2,  materialID, targetArea, outVerts, outTris, outMats);
-    subdivideTriangleAdaptive(m01, m12, m20, materialID, targetArea, outVerts, outTris, outMats);
+    subdivideTriangleAdaptive(v0,  m01, m20, materialID, targetArea, outVerts, outTris, outMats, outSubdivFlags, depth + 1);
+    subdivideTriangleAdaptive(m01, v1,  m12, materialID, targetArea, outVerts, outTris, outMats, outSubdivFlags, depth + 1);
+    subdivideTriangleAdaptive(m20, m12, v2,  materialID, targetArea, outVerts, outTris, outMats, outSubdivFlags, depth + 1);
+    subdivideTriangleAdaptive(m01, m12, m20, materialID, targetArea, outVerts, outTris, outMats, outSubdivFlags, depth + 1);
 }
 
 // Subdivide every triangle until all have area ≤ targetArea.
@@ -48,8 +55,20 @@ inline Mesh subdivideToUniformArea(const Mesh& input, float targetArea) {
                        ? input.triangle_material_id[i] : 0u;
         subdivideTriangleAdaptive(
             input.vertices[tri.i0], input.vertices[tri.i1], input.vertices[tri.i2],
-            mat, targetArea, out.vertices, out.indices, out.triangle_material_id);
+            mat, targetArea, out.vertices, out.indices, out.triangle_material_id,
+            &out.triangle_is_subdivided);
     }
+
+    size_t subdivCount = (size_t)std::count(
+        out.triangle_is_subdivided.begin(),
+        out.triangle_is_subdivided.end(), (uint8_t)1);
+    std::cout << "  Subdivision: " << input.numTriangles() << " -> "
+              << out.numTriangles() << " tris ("
+              << subdivCount << " new, "
+              << (out.numTriangles() > 0
+                  ? (int)(100.0 * subdivCount / out.numTriangles()) : 0)
+              << "% refined)\n";
+
     return out;
 }
 

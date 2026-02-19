@@ -216,3 +216,53 @@ set_target_properties(test_form_factors PROPERTIES
 message(STATUS "=========================")
 message(STATUS "Configuration complete")
 message(STATUS "=========================")
+
+# --- Interactive viewer (GLFW + OpenGL, CPU-only radiosity) ---
+set(GLFW_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party/optix/include")
+set(GLFW_LIB "${CMAKE_SOURCE_DIR}/third_party/optix/lib/glfw3dll.lib")
+set(GLFW_DLL "${CMAKE_SOURCE_DIR}/third_party/optix/bin/glfw3.dll")
+
+add_executable(viewer src/viewer_main.cpp)
+target_include_directories(viewer PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party
+    ${GLFW_INCLUDE_DIR}
+)
+target_link_libraries(viewer PRIVATE ${GLFW_LIB} opengl32)
+target_compile_features(viewer PRIVATE cxx_std_17)
+if(MSVC)
+    target_compile_options(viewer PRIVATE /W3 /MP)
+    target_compile_definitions(viewer PRIVATE _CRT_SECURE_NO_WARNINGS)
+    if(USE_OPENMP)
+        target_compile_options(viewer PRIVATE /openmp)
+    endif()
+else()
+    target_compile_options(viewer PRIVATE -Wall -Wextra)
+    if(USE_OPENMP)
+        find_package(OpenMP REQUIRED COMPONENTS CXX)
+        target_link_libraries(viewer PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+endif()
+set_target_properties(viewer PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+# Link OptiX and CUDA to viewer if enabled
+if(USE_OPTIX)
+    target_include_directories(viewer PRIVATE
+        ${OptiX_INSTALL_DIR}/include
+        ${CUDAToolkit_INCLUDE_DIRS}
+    )
+    target_link_libraries(viewer PRIVATE
+        CUDA::cudart
+        CUDA::cuda_driver
+    )
+    add_dependencies(viewer compile_ptx)
+endif()
+
+# Copy glfw3.dll next to viewer executable.
+add_custom_command(TARGET viewer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${GLFW_DLL}" "$<TARGET_FILE_DIR:viewer>/glfw3.dll"
+    COMMENT "Copying glfw3.dll"
+)

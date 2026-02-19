@@ -5,6 +5,7 @@
 
 #include "app/Config.h"
 #include "scene/CornellBox.h"
+#include "scene/SceneLoader.h"
 #include "mesh/Subdivision.h"
 #include "mesh/PatchBuilder.h"
 #include "export/OBJExporter.h"
@@ -49,7 +50,8 @@ void renderAnimationFrame(const Mesh& mesh,
                           const std::vector<Vec3>& radiosity,
                           const std::string& ptxPath,
                           const std::string& outputPath,
-                          uint32_t frameIndex) {
+                          uint32_t frameIndex,
+                          const Renderer::Camera& cam = Renderer::defaultCamera()) {
     const uint32_t N = static_cast<uint32_t>(mesh.numTriangles());
     
     // Tone-map current radiosity state.
@@ -136,7 +138,7 @@ void renderAnimationFrame(const Mesh& mesh,
     
     std::ostringstream filename;
     filename << outputPath << "/frame_" << std::setfill('0') << std::setw(5) << frameIndex << ".png";
-    renderer.renderAndSave(filename.str());
+    renderer.renderAndSave(filename.str(), cam);
 }
 #endif
 
@@ -265,7 +267,8 @@ uint32_t runSolveLoop(const Mesh& mesh,
 #ifdef USE_OPTIX
                       , const std::vector<uint32_t>* captureIters = nullptr,
                       const std::string* ptxPath = nullptr,
-                      const std::string* animPath = nullptr
+                      const std::string* animPath = nullptr,
+                      const Renderer::Camera* animCam = nullptr
 #endif
                       ) {
     const uint32_t N = static_cast<uint32_t>(mesh.numTriangles());
@@ -364,12 +367,14 @@ uint32_t runSolveLoop(const Mesh& mesh,
         // Capture animation frame if this iteration is in the schedule.
         if (captureIters && ptxPath && animPath && nextFrameIdx < captureIters->size()) {
             if (iter == (*captureIters)[nextFrameIdx]) {
-                renderAnimationFrame(mesh, radiosity, *ptxPath, *animPath, nextFrameIdx);
+                renderAnimationFrame(mesh, radiosity, *ptxPath, *animPath, nextFrameIdx,
+                                     animCam ? *animCam : Renderer::defaultCamera());
                 nextFrameIdx++;
                 // Drain any duplicate entries (multiple frames at same iteration).
                 while (nextFrameIdx < captureIters->size() &&
                        (*captureIters)[nextFrameIdx] == iter) {
-                    renderAnimationFrame(mesh, radiosity, *ptxPath, *animPath, nextFrameIdx);
+                    renderAnimationFrame(mesh, radiosity, *ptxPath, *animPath, nextFrameIdx,
+                                         animCam ? *animCam : Renderer::defaultCamera());
                     nextFrameIdx++;
                 }
             }
@@ -382,11 +387,13 @@ uint32_t runSolveLoop(const Mesh& mesh,
 #ifdef USE_OPTIX
     // Capture final frame showing fully converged state.
     if (captureIters && ptxPath && animPath && nextFrameIdx < captureIters->size()) {
-        renderAnimationFrame(mesh, radiosity, *ptxPath, *animPath, nextFrameIdx);
+        renderAnimationFrame(mesh, radiosity, *ptxPath, *animPath, nextFrameIdx,
+                             animCam ? *animCam : Renderer::defaultCamera());
         nextFrameIdx++;
         // Fill remaining scheduled frames with the converged state.
         while (nextFrameIdx < captureIters->size()) {
-            renderAnimationFrame(mesh, radiosity, *ptxPath, *animPath, nextFrameIdx);
+            renderAnimationFrame(mesh, radiosity, *ptxPath, *animPath, nextFrameIdx,
+                                 animCam ? *animCam : Renderer::defaultCamera());
             nextFrameIdx++;
         }
         std::cout << "Animation: " << nextFrameIdx << " frames rendered\n";
@@ -440,7 +447,8 @@ uint32_t runProgressiveRefinement(const Mesh& mesh,
                                   std::vector<Vec3>& unshot
 #ifdef USE_OPTIX
                                   , const std::string& ptxPath = "",
-                                  const std::string& outputPath = ""
+                                  const std::string& outputPath = "",
+                                  const Renderer::Camera& cam = Renderer::defaultCamera()
 #endif
                                   ) {
 #ifdef USE_OPTIX
@@ -484,7 +492,7 @@ uint32_t runProgressiveRefinement(const Mesh& mesh,
                   << " fps -> " << animPath << "/\n";
         uint32_t iters = runSolveLoop(mesh, ffc, radiosity, unshot,
                                       "Rendering", nullptr,
-                                      &frameSchedule, &ptxPath, &animPath);
+                                      &frameSchedule, &ptxPath, &animPath, &cam);
         return iters;
     }
 #endif
@@ -532,32 +540,65 @@ int main(int argc, char** argv) {
     // --- Config summary ---
     std::cout << "\n=== Config ===\n";
     std::cout << "  subdivTarget  = " << kSubdivisionTargetArea << "\n";
+    std::cout << "  maxAbsArea    = " << kMaxAbsoluteTriangleArea
+              << (kMaxAbsoluteTriangleArea > 0.0f ? "" : " (disabled)") << "\n";
+    std::cout << "  maxEdgeRatio  = " << kMaxTriangleEdgeRatio
+              << (kMaxTriangleEdgeRatio > 0.0f ? "" : " (disabled)") << "\n";
+    std::cout << "  maxTriangles  = " << kMaxSubdivisionTriangles << "\n";
     std::cout << "  visSamples    = " << kVisibilitySamples << "\n";
     std::cout << "  indirectBoost = " << kIndirectBoostFactor << "\n";
     std::cout << "  exposure      = " << kToneMapExposure << "\n";
     std::cout << "  gamma         = " << kToneMapGamma << "\n";
-    std::cout << "  render        = " << kRenderWidth << "x" << kRenderHeight << "\n\n";
+    std::cout << "  render        = " << kRenderWidth << "x" << kRenderHeight << "\n";
+    std::cout << "  ffRefine      = " << (kEnableFFRefinement ? "on" : "off")
+              << " (ratio=" << kFFRefinementAccuracyRatio
+              << ", passes=" << kFFRefinementMaxPasses << ")\n";
+    if (config.useOBJScene())
+        std::cout << "  scene         = " << config.scenePath << "\n";
+    std::cout << "\n";
 
-    // 1) Build Cornell Box and fix winding order.
-    Mesh mesh = CornellBox::createCornellBox();
-    CornellBox::fixNormalsOrientation(mesh);
-
-    // 2) Uniform-area subdivision.
-    auto tPhase = std::chrono::high_resolution_clock::now();
-    mesh = Subdivision::subdivideToUniformArea(mesh, kSubdivisionTargetArea);
-    double dtSub = std::chrono::duration<double>(
-        std::chrono::high_resolution_clock::now() - tPhase).count();
-    std::cout << "Subdivision: " << mesh.numTriangles() << " tris  ["
-              << formatDuration(dtSub) << "]\n";
-
-    // 3) Classify ceiling-light patches and isolate their vertices.
+    Mesh mesh;
     uint32_t lightCount = 0;
-    classifyLightTriangles(mesh, lightCount);
-    duplicateLightVertices(mesh);
+    // Camera parameters for OBJ scenes (stored as plain floats, built into
+    // Renderer::Camera in the OptiX block).
+    float camEyeX = kCameraEyeX, camEyeY = kCameraEyeY, camEyeZ = kCameraEyeZ;
+    float camLookX = 0.f, camLookY = 0.f, camLookZ = 0.f;
+    float camFovY = kCameraFovY;
+    auto tPhase = std::chrono::high_resolution_clock::now();
 
-    // 4) Compute per-triangle geometry and material data.
-    PatchBuilder::buildTriangleData(mesh);
-    if (config.validate && !PatchBuilder::validateMesh(mesh)) return 1;
+    if (config.useOBJScene()) {
+        // ---- OBJ scene path ----
+        tPhase = std::chrono::high_resolution_clock::now();
+        SceneLoader::Scene scene = SceneLoader::loadScene(config.scenePath);
+        if (scene.mesh.numTriangles() == 0) return 1;
+        mesh = std::move(scene.mesh);
+        lightCount = scene.emissiveTriCount;
+        // Store camera from scene suggestion.
+        camEyeX  = scene.cameraEye.x;    camEyeY  = scene.cameraEye.y;    camEyeZ  = scene.cameraEye.z;
+        camLookX = scene.cameraLookAt.x;  camLookY = scene.cameraLookAt.y; camLookZ = scene.cameraLookAt.z;
+        camFovY  = scene.cameraFovY;
+        double dtLoad = std::chrono::duration<double>(
+            std::chrono::high_resolution_clock::now() - tPhase).count();
+        std::cout << "Scene load + subdivision: " << mesh.numTriangles()
+                  << " tris  [" << formatDuration(dtLoad) << "]\n";
+    } else {
+        // ---- Cornell Box path (original) ----
+        mesh = CornellBox::createCornellBox();
+        CornellBox::fixNormalsOrientation(mesh);
+
+        tPhase = std::chrono::high_resolution_clock::now();
+        mesh = Subdivision::subdivideToUniformArea(mesh, kSubdivisionTargetArea);
+        double dtSub = std::chrono::duration<double>(
+            std::chrono::high_resolution_clock::now() - tPhase).count();
+        std::cout << "Subdivision: " << mesh.numTriangles() << " tris  ["
+                  << formatDuration(dtSub) << "]\n";
+
+        classifyLightTriangles(mesh, lightCount);
+        duplicateLightVertices(mesh);
+
+        PatchBuilder::buildTriangleData(mesh);
+        if (config.validate && !PatchBuilder::validateMesh(mesh)) return 1;
+    }
 
     std::cout << "\n=== Scene ===\n";
     std::cout << "  Triangles: " << mesh.numTriangles() << "\n";
@@ -590,8 +631,14 @@ int main(int argc, char** argv) {
 
     tPhase = std::chrono::high_resolution_clock::now();
 #ifdef USE_OPTIX
+    // Build camera for animation frames.
+    Renderer::Camera animCam;
+    animCam.eye    = make_float3(camEyeX, camEyeY, camEyeZ);
+    animCam.lookAt = make_float3(camLookX, camLookY, camLookZ);
+    animCam.up     = make_float3(0.0f, 1.0f, 0.0f);
+    animCam.fovY   = camFovY;
     uint32_t iters = runProgressiveRefinement(mesh, ffc, radiosity, unshot,
-                                              renderPtx, config.outputPath);
+                                              renderPtx, config.outputPath, animCam);
 #else
     uint32_t iters = runProgressiveRefinement(mesh, ffc, radiosity, unshot);
 #endif
@@ -613,8 +660,16 @@ int main(int argc, char** argv) {
 
     // 7) Export smoothed OBJ with area-weighted vertex colors.
     std::filesystem::create_directories(config.outputPath);
-    const std::string objFile = config.outputPath + "/cornell_radiosity.obj";
+    // Derive a short scene name for output files.
+    std::string sceneName = "cornell";
+    if (config.useOBJScene()) {
+        auto p = std::filesystem::path(config.scenePath).stem().string();
+        if (!p.empty()) sceneName = p;
+    }
+    const std::string objFile = config.outputPath + "/" + sceneName + "_radiosity.obj";
     if (!OBJExporter::exportSmoothedOBJ(objFile, mesh, display)) return 1;
+    const std::string renderFile = config.outputPath + "/" + sceneName + "_render.png";
+    const std::string wireFile   = config.outputPath + "/" + sceneName + "_render_wireframe.png";
 
     // 8) Ray-traced PNG renders (OptiX).
 #ifdef USE_OPTIX
@@ -700,21 +755,26 @@ int main(int argc, char** argv) {
                 return { std::move(pos), std::move(idx), std::move(colors) };
             };
 
-            // --- Front view (default camera, all triangles) ---
+            // Build camera from stored parameters.
+            Renderer::Camera cam;
+            cam.eye    = make_float3(camEyeX, camEyeY, camEyeZ);
+            cam.lookAt = make_float3(camLookX, camLookY, camLookZ);
+            cam.up     = make_float3(0.0f, 1.0f, 0.0f);
+            cam.fovY   = camFovY;
+
+            // --- Front view (scene camera, all triangles) ---
             {
                 auto [pos, idx, colors] = buildRenderMesh([](size_t) { return true; }, display);
                 Renderer::RayTracedRenderer renderer;
                 renderer.initialize(ptx.string(), pos, idx, colors);
-                renderer.renderAndSave(config.outputPath + "/cornell_render.png");
+                renderer.renderAndSave(renderFile, cam);
 
-                // --- Wireframe overlay (same front view + mesh edges and vertices) ---
-                renderer.renderWireframeAndSave(
-                    config.outputPath + "/cornell_render_wireframe.png",
-                    pos, idx);
+                // --- Wireframe overlay (same view + mesh edges and vertices) ---
+                renderer.renderWireframeAndSave(wireFile, pos, idx, cam);
             }
 
-            // --- Top view (ceiling removed, camera looking straight down) ---
-            {
+            // --- Top view (Cornell only: ceiling removed, camera looking down) ---
+            if (!config.useOBJScene()) {
                 auto [pos, idx, colors] = buildRenderMesh([&](size_t i) {
                     // Remove ceiling and light-panel triangles (centroid y ≈ 0.5).
                     return mesh.triangle_centroid[i].y < 0.48f;
@@ -726,7 +786,7 @@ int main(int argc, char** argv) {
                 topCam.fovY   = 39.3f;
                 Renderer::RayTracedRenderer renderer;
                 renderer.initialize(ptx.string(), pos, idx, colors);
-                renderer.renderAndSave(config.outputPath + "/cornell_render_top.png", topCam);
+                renderer.renderAndSave(config.outputPath + "/" + sceneName + "_render_top.png", topCam);
             }
         }
     }
@@ -738,9 +798,10 @@ int main(int argc, char** argv) {
     std::cout << "\n=== Done (" << formatDuration(dtTotal) << ") ===\n";
     std::cout << "  " << objFile << "\n";
 #ifdef USE_OPTIX
-    std::cout << "  " << config.outputPath << "/cornell_render.png\n";
-    std::cout << "  " << config.outputPath << "/cornell_render_wireframe.png\n";
-    std::cout << "  " << config.outputPath << "/cornell_render_top.png\n";
+    std::cout << "  " << renderFile << "\n";
+    std::cout << "  " << wireFile << "\n";
+    if (!config.useOBJScene())
+        std::cout << "  " << config.outputPath << "/" << sceneName << "_render_top.png\n";
 #endif
     std::cout << std::endl;
     return 0;
